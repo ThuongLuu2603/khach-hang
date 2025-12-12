@@ -55,19 +55,17 @@ st.markdown("""
 
 
 # --- HÀM TẢI VÀ XỬ LÝ DỮ LIỆU THỰC TỪ GOOGLE SHEET ---
-GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1DTGmU-88bPkTXVqnx8yyXsN29XJ1yxIY/edit#gid=1963553554"
-SHEET_TITLE = "F1_dữ liệu khách" # Tên Sheet cần đọc
-
+GOOGLE_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1DTGmU-88bPkTXVqnx8yyXsN29XJ1yxIY/export?format=csv&gid=1963553554"
 @st.cache_data(ttl=600) # Cache dữ liệu 10 phút
 def load_data_from_gsheets():
     try:
-        # Sử dụng streamlit-gsheets để đọc dữ liệu công khai
-        df = gs.read(spreadsheet=GOOGLE_SHEET_URL, sheet=SHEET_TITLE, usecols=list(range(17)))
+        # Đọc dữ liệu trực tiếp từ link CSV
+        df = pd.read_csv(GOOGLE_SHEET_CSV_URL)
         
         # Loại bỏ các dòng hoàn toàn trống
         df.dropna(how='all', inplace=True)
         
-        # Đặt lại tên cột cho dễ xử lý và ánh xạ theo thứ tự trong ảnh Google Sheet
+        # Đặt lại tên cột cho dễ xử lý và ánh xạ theo thứ tự (dựa trên ảnh Google Sheet)
         df.columns = [
             'STT', 'Mã Tour', 'Tên Tour', 'Ngày Khởi Hành', 'Mã Duy Nhất',
             'Họ Tên', 'Ngày Sinh', 'Giới Tính', 'Email', 'Di Động',
@@ -75,25 +73,27 @@ def load_data_from_gsheets():
             'Trị Giá Booking', 'Số Lượng Khách'
         ]
 
-        # 1. Chuyển đổi kiểu dữ liệu
-        # Hàm làm sạch và chuyển đổi số (loại bỏ VND, ., ,)
+        # 1. Chuyển đổi kiểu dữ liệu (Giữ nguyên logic làm sạch tiền tệ)
         def clean_currency(value):
             if isinstance(value, str):
+                # Loại bỏ ký tự VNĐ, dấu phân cách hàng nghìn (.), dấu thập phân (,)
                 return value.replace(' VND', '').replace('.', '').replace(',', '').strip()
             return value
 
         df['Trị Giá'] = pd.to_numeric(df['Trị Giá'].apply(clean_currency), errors='coerce')
         df['Trị Giá Booking'] = pd.to_numeric(df['Trị Giá Booking'].apply(clean_currency), errors='coerce')
-        df['Ngày Khởi Hành'] = pd.to_datetime(df['Ngày Khởi Hành'], errors='coerce', format='%d/%m/%Y')
-        df['Số Lượng Khách'] = pd.to_numeric(df['Số Lượng Khách'].apply(lambda x: x.split()[0] if isinstance(x, str) else x), errors='coerce')
         
-        # Điền 1 cho Số Lượng Khách bị thiếu (giả định mỗi dòng là 1 khách nếu cột này NaN)
+        # Định dạng ngày tháng: Cột 'Ngày Khởi Hành' trong sheet là 'dd/mm/yyyy'
+        df['Ngày Khởi Hành'] = pd.to_datetime(df['Ngày Khởi Hành'], errors='coerce', format='%d/%m/%Y')
+        
+        # Làm sạch cột số lượng khách (để lấy số)
+        df['Số Lượng Khách'] = pd.to_numeric(df['Số Lượng Khách'].apply(lambda x: x.split()[0] if isinstance(x, str) and x else x), errors='coerce')
         df['Số Lượng Khách'].fillna(1, inplace=True)
         
         return df
         
     except Exception as e:
-        st.error(f"Lỗi khi tải dữ liệu từ Google Sheet: {e}. Vui lòng kiểm tra lại quyền truy cập hoặc định dạng sheet.")
+        st.error(f"Lỗi khi tải dữ liệu từ Google Sheet: {e}. Vui lòng kiểm tra lại link CSV và định dạng cột.")
         return pd.DataFrame()
 
 # --- Định dạng và Echarts Options (Giữ nguyên) ---
