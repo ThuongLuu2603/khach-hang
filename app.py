@@ -3,7 +3,6 @@ import pandas as pd
 import json
 from streamlit_echarts import st_echarts
 from datetime import datetime
-import streamlit_gsheets as gs
 
 # --- Cấu hình Trang & Custom CSS (Giữ nguyên giao diện Sci-Fi) ---
 # (Phần CSS và cấu hình ECharts vẫn được giữ nguyên để đảm bảo giao diện)
@@ -55,7 +54,9 @@ st.markdown("""
 
 
 # --- HÀM TẢI VÀ XỬ LÝ DỮ LIỆU THỰC TỪ GOOGLE SHEET ---
+
 GOOGLE_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1DTGmU-88bPkTXVqnx8yyXsN29XJ1yxIY/export?format=csv&gid=1963553554"
+
 @st.cache_data(ttl=600) # Cache dữ liệu 10 phút
 def load_data_from_gsheets():
     try:
