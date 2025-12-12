@@ -2,15 +2,19 @@ import streamlit as st
 import pandas as pd
 import json
 from streamlit_echarts import st_echarts
+from datetime import datetime
+import streamlit_gsheets as gs
 
-# --- Cấu hình Trang & Định nghĩa dữ liệu/hàm ---
+# --- Cấu hình Trang & Custom CSS (Giữ nguyên giao diện Sci-Fi) ---
+# (Phần CSS và cấu hình ECharts vẫn được giữ nguyên để đảm bảo giao diện)
+
 st.set_page_config(
     page_title="Dashboard Khách Hàng & Doanh Thu Tour Du Lịch",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Giao diện KPI cần font 'Orbitron' - dùng HTML/Markdown an toàn
+# Custom CSS cho giao diện KPI và font Orbitron (giữ nguyên từ câu trả lời trước)
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
@@ -50,56 +54,58 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# Dữ liệu từ file HTML gốc (giả lập data sau khi đã tính toán)
-# Chúng ta sẽ sử dụng trực tiếp các con số này để xây dựng Dashboard
-DATA_PAYLOAD = {
-    "kpi_total_revenue": 37860152492,
-    "kpi_total_booking_value": 191033077122,
-    "kpi_total_customers": 2097,
-    "kpi_unique_nationalities": 17,
-    "trend_chart_revenue_by_departure": [
-        {"departure_date": "2025-01-01T00:00:00","total_revenue": 1059942005},{"departure_date": "2025-01-02T00:00:00","total_revenue": 8032719020},
-        {"departure_date": "2025-01-03T00:00:00","total_revenue": 4418653512},{"departure_date": "2025-01-04T00:00:00","total_revenue": 6280297642},
-        {"departure_date": "2025-01-05T00:00:00","total_revenue": 2387744010},{"departure_date": "2025-01-06T00:00:00","total_revenue": 1398338509},
-        {"departure_date": "2025-01-07T00:00:00","total_revenue": 4039332504},{"departure_date": "2025-01-08T00:00:00","total_revenue": 1154727500},
-        {"departure_date": "2025-01-09T00:00:00","total_revenue": 1090560000},{"departure_date": "2025-01-10T00:00:00","total_revenue": 3909047000},
-        {"departure_date": "2025-01-11T00:00:00","total_revenue": 3216741280},{"departure_date": "2025-01-12T00:00:00","total_revenue": 78440000},
-        {"departure_date": "2025-01-13T00:00:00","total_revenue": 793609510}
-    ],
-    "pie_gender_distribution": [{"gender": "Nam","customer_count": 872},{"gender": "Nữ","customer_count": 1225}],
-    "pie_nationality_distribution": [
-        {"nationality": "VN","customer_count": 1557},{"nationality": "NON","customer_count": 194},{"nationality": "USA","customer_count": 179},
-        {"nationality": "AUS","customer_count": 90},{"nationality": "CA","customer_count": 28},{"nationality": "FR","customer_count": 15}
-    ],
-    "bar_tour_revenue": [
-        {"tour_name": "Đông Bắc Á","total_revenue": 21720704941},{"tour_name": "Đông Nam Á","total_revenue": 10742389050},
-        {"tour_name": "Nam Á","total_revenue": 1943540001},{"tour_name": "Tây Âu","total_revenue": 1901467000},
-        {"tour_name": "Tây Á, Trung Đông, S.N.G","total_revenue": 1552051500}
-    ],
-    "table_detail_customer": [
-        {"Họ tên": "LÊ THỊ KHUYA","Giới tính": "Nữ","Quốc tịch": "VN","Tên Tour": "Tây Âu","Ngày khởi hành": "2025-01-10T00:00:00","Trị giá": 66990000,"Trị giá booking": 719900000},
-        {"Họ tên": "VÕ THÀNH HIẾN","Giới tính": "Nam","Quốc tịch": "VN","Tên Tour": "Tây Âu","Ngày khởi hành": "2025-01-10T00:00:00","Trị giá": 66990000,"Trị giá booking": 719900000},
-        {"Họ tên": "NGUYỄN THỊ HỒNG NHUNG","Giới tính": "Nữ","Quốc tịch": "VN","Tên Tour": "Tây Âu","Ngày khởi hành": "2025-01-10T00:00:00","Trị giá": 66990000,"Trị giá booking": 719900000},
-        {"Họ tên": "HUỲNH THỊ MĂNG","Giới tính": "Nữ","Quốc tịch": "VN","Tên Tour": "Tây Âu","Ngày khởi hành": "2025-01-10T00:00:00","Trị giá": 101990000,"Trị giá booking": 719900000},
-        {"Họ tên": "LƯU VĂN TIẾP","Giới tính": "Nam","Quốc tịch": "VN","Tên Tour": "Tây Âu","Ngày khởi hành": "2025-01-10T00:00:00","Trị giá": 66990000,"Trị giá booking": 719900000},
-        {"Họ tên": "LƯU LAN PHƯƠNG","Giới tính": "Nữ","Quốc tịch": "VN","Tên Tour": "Tây Âu","Ngày khởi hành": "2025-01-10T00:00:00","Trị giá": 66990000,"Trị giá booking": 719900000},
-        {"Họ tên": "PHẠM HOÀNG VŨ","Giới tính": "Nam","Quốc tịch": "VN","Tên Tour": "Tây Âu","Ngày khởi hành": "2025-01-10T00:00:00","Trị giá": 89990000,"Trị giá booking": 719900000},
-        {"Họ tên": "CHUNG THỊ BẢY","Giới tính": "Nữ","Quốc tịch": "VN","Tên Tour": "Tây Âu","Ngày khởi hành": "2025-01-10T00:00:00","Trị giá": 66990000,"Trị giá booking": 719900000},
-        {"Họ tên": "CHÂU PHI TUỒNG","Giới tính": "Nam","Quốc tịch": "VN","Tên Tour": "Tây Âu","Ngày khởi hành": "2025-01-10T00:00:00","Trị giá": 66990000,"Trị giá booking": 719900000},
-        {"Họ tên": "LƯƠNG NGUYỆT NGA","Giới tính": "Nữ","Quốc tịch": "VN","Tên Tour": "Tây Âu","Ngày khởi hành": "2025-01-10T00:00:00","Trị giá": 58990000,"Trị giá booking": 719900000}
-    ]
-}
+# --- HÀM TẢI VÀ XỬ LÝ DỮ LIỆU THỰC TỪ GOOGLE SHEET ---
+GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1DTGmU-88bPkTXVqnx8yyXsN29XJ1yxIY/edit#gid=1963553554"
+SHEET_TITLE = "F1_dữ liệu khách" # Tên Sheet cần đọc
 
-# --- Định dạng ---
+@st.cache_data(ttl=600) # Cache dữ liệu 10 phút
+def load_data_from_gsheets():
+    try:
+        # Sử dụng streamlit-gsheets để đọc dữ liệu công khai
+        df = gs.read(spreadsheet=GOOGLE_SHEET_URL, sheet=SHEET_TITLE, usecols=list(range(17)))
+        
+        # Loại bỏ các dòng hoàn toàn trống
+        df.dropna(how='all', inplace=True)
+        
+        # Đặt lại tên cột cho dễ xử lý và ánh xạ theo thứ tự trong ảnh Google Sheet
+        df.columns = [
+            'STT', 'Mã Tour', 'Tên Tour', 'Ngày Khởi Hành', 'Mã Duy Nhất',
+            'Họ Tên', 'Ngày Sinh', 'Giới Tính', 'Email', 'Di Động',
+            'Passport', 'Email Khác', 'Ghi Chú', 'Quốc Tịch', 'Trị Giá',
+            'Trị Giá Booking', 'Số Lượng Khách'
+        ]
+
+        # 1. Chuyển đổi kiểu dữ liệu
+        # Hàm làm sạch và chuyển đổi số (loại bỏ VND, ., ,)
+        def clean_currency(value):
+            if isinstance(value, str):
+                return value.replace(' VND', '').replace('.', '').replace(',', '').strip()
+            return value
+
+        df['Trị Giá'] = pd.to_numeric(df['Trị Giá'].apply(clean_currency), errors='coerce')
+        df['Trị Giá Booking'] = pd.to_numeric(df['Trị Giá Booking'].apply(clean_currency), errors='coerce')
+        df['Ngày Khởi Hành'] = pd.to_datetime(df['Ngày Khởi Hành'], errors='coerce', format='%d/%m/%Y')
+        df['Số Lượng Khách'] = pd.to_numeric(df['Số Lượng Khách'].apply(lambda x: x.split()[0] if isinstance(x, str) else x), errors='coerce')
+        
+        # Điền 1 cho Số Lượng Khách bị thiếu (giả định mỗi dòng là 1 khách nếu cột này NaN)
+        df['Số Lượng Khách'].fillna(1, inplace=True)
+        
+        return df
+        
+    except Exception as e:
+        st.error(f"Lỗi khi tải dữ liệu từ Google Sheet: {e}. Vui lòng kiểm tra lại quyền truy cập hoặc định dạng sheet.")
+        return pd.DataFrame()
+
+# --- Định dạng và Echarts Options (Giữ nguyên) ---
+
 def format_kpi_value(value):
     if value >= 1e12: return f"{value / 1e12:.2f}T"
     if value >= 1e9: return f"{value / 1e9:.2f}B"
     if value >= 1e6: return f"{value / 1e6:.2f}M"
-    return f"{value:,}"
+    return f"{int(value):,}" if value is not None else "0"
 
 def custom_kpi_card(title, value, unit='VND'):
     formatted_value = format_kpi_value(value)
-    # Sử dụng HTML để kiểm soát font và màu sắc chính xác
     st.markdown(
         f"""
         <div class="kpi-title">{title}</div>
@@ -109,17 +115,19 @@ def custom_kpi_card(title, value, unit='VND'):
         </div>
         """, unsafe_allow_html=True
     )
-    # Thêm tooltip (dù không hoàn hảo như HTML gốc)
-    st.caption(f"Trị giá chi tiết: {value:,.0f} VND", help=f"Tổng trị giá là: {value:,.0f} VND")
+    st.caption(f"Trị giá chi tiết: {value:,.0f} {unit}" if value is not None else "Không có dữ liệu", 
+               help=f"Tổng trị giá là: {value:,.0f} {unit}")
 
+# Echarts Theme
+ECHARTS_COLOR = ['#4A90E2', '#F5A623', '#9013FE', '#50E3C2', '#F87979', '#82D8D8', '#B7A4F9', '#BD10E0']
 
-# --- Echarts Options ---
-# Theme màu sắc của Echarts
-ECHARTS_COLOR = ['#4A90E2', '#F5A623', '#9013FE', '#50E3C2', '#F87979', '#82D8D8', '#B7A4F9']
-
-def get_line_chart_option(data):
-    dates = [pd.to_datetime(item['departure_date']).strftime('%d/%m') for item in data]
-    revenues = [item['total_revenue'] for item in data]
+def get_line_chart_option(df):
+    df_agg = df.groupby(df['Ngày Khởi Hành'].dt.date)['Trị Giá'].sum().reset_index()
+    df_agg.columns = ['departure_date', 'total_revenue']
+    df_agg.dropna(inplace=True)
+    
+    dates = [pd.to_datetime(item).strftime('%d/%m/%Y') for item in df_agg['departure_date']]
+    revenues = df_agg['total_revenue'].tolist()
     
     return {
         "grid": {"top": '15%', "right": '5%', "bottom": '20%', "left": '15%'},
@@ -146,13 +154,14 @@ def get_line_chart_option(data):
         }]
     }
 
-def get_pie_chart_option(data, label_key, value_key, title):
-    data_series = [{"value": item[value_key], "name": item[label_key]} for item in data]
+def get_pie_chart_option(df, label_key, value_key, title):
+    df_agg = df.groupby(label_key)[value_key].sum().reset_index(name='count')
+    df_agg.dropna(inplace=True)
     
-    # Tính tổng cho việc hiển thị tỷ lệ Nam/Nữ
-    total_count = sum([item[value_key] for item in data])
+    data_series = [{"value": item['count'], "name": item[label_key]} for index, item in df_agg.iterrows()]
+    total_count = df_agg['count'].sum()
     
-    # Định dạng Legend để hiển thị số lượng
+    # Custom formatter JS để hiển thị giá trị và phần trăm
     legend_formatter = """function (name) {
         var value = 0;
         var percent = 0;
@@ -173,7 +182,7 @@ def get_pie_chart_option(data, label_key, value_key, title):
         "legend": {
             "orient": 'vertical', "left": 'left', "top": 'center',
             "textStyle": {"color": '#E0E0E0'},
-            "formatter": {"_custom": True, "code": legend_formatter} # Custom formatter JS
+            "formatter": {"_custom": True, "code": legend_formatter}
         },
         "series": [{
             "name": title, "type": 'pie', "radius": ['45%', '70%'], "center": ['70%', '50%'],
@@ -183,11 +192,15 @@ def get_pie_chart_option(data, label_key, value_key, title):
         }]
     }
 
-def get_bar_chart_option(data):
+def get_bar_chart_option(df):
+    # Tính tổng doanh thu theo Tour, lấy top 5
+    df_agg = df.groupby('Tên Tour')['Trị Giá'].sum().reset_index(name='total_revenue')
+    df_agg = df_agg.sort_values('total_revenue', ascending=False).head(5)
+    
     # Bar chart ngang, sort ngược lại để Top 1 nằm trên cùng
-    sorted_data = sorted(data, key=lambda x: x['total_revenue'], reverse=False)
-    tour_names = [item['tour_name'] for item in sorted_data]
-    revenues = [item['total_revenue'] for item in sorted_data]
+    sorted_data = df_agg.sort_values('total_revenue', ascending=True)
+    tour_names = sorted_data['Tên Tour'].tolist()
+    revenues = sorted_data['total_revenue'].tolist()
     
     return {
         "grid": {"top": '5%', "right": '5%', "bottom": '5%', "left": '30%'},
@@ -206,62 +219,77 @@ def get_bar_chart_option(data):
         "series": [{
             "name": 'Doanh Thu', "type": 'bar',
             "data": revenues,
-            "itemStyle": {"borderRadius": [0, 4, 4, 0]} # Bar ngang
+            "itemStyle": {"borderRadius": [0, 4, 4, 0]}
         }]
     }
 
 # --- Chạy Dashboard ---
-
 st.title("🌌 DASHBOARD KHÁCH HÀNG & DOANH THU TOUR DU LỊCH")
 
-# 1. KPIs
-kpi_cols = st.columns(4)
+# Tải dữ liệu thật
+df_data = load_data_from_gsheets()
 
-with kpi_cols[0]:
-    custom_kpi_card("TỔNG TRỊ GIÁ", DATA_PAYLOAD['kpi_total_revenue'])
-with kpi_cols[1]:
-    custom_kpi_card("TỔNG TRỊ GIÁ BOOKING", DATA_PAYLOAD['kpi_total_booking_value'])
-with kpi_cols[2]:
-    custom_kpi_card("TỔNG SỐ KHÁCH", DATA_PAYLOAD['kpi_total_customers'], unit='Người')
-with kpi_cols[3]:
-    custom_kpi_card("SỐ QUỐC TỊCH", DATA_PAYLOAD['kpi_unique_nationalities'], unit='Quốc tịch')
-
-# 2. Biểu đồ chính
-chart_row2_col1, chart_row2_col2, chart_row2_col3 = st.columns(3)
-
-# Xu hướng Doanh Thu
-with chart_row2_col1:
-    st.subheader("📈 XU HƯỚNG TRỊ GIÁ THEO NGÀY KHỞI HÀNH")
-    st_echarts(options=get_line_chart_option(DATA_PAYLOAD['trend_chart_revenue_by_departure']), height="350px")
-
-# Phân Bố Giới Tính
-with chart_row2_col2:
-    st.subheader("👥 PHÂN BỐ GIỚI TÍNH")
-    st_echarts(options=get_pie_chart_option(DATA_PAYLOAD['pie_gender_distribution'], 'gender', 'customer_count', 'Phân Bố Giới Tính'), height="350px")
-
-# Phân Bố Quốc Tịch
-with chart_row2_col3:
-    st.subheader("🗺️ PHÂN BỐ QUỐC TỊCH")
-    st_echarts(options=get_pie_chart_option(DATA_PAYLOAD['pie_nationality_distribution'], 'nationality', 'customer_count', 'Phân Bố Quốc Tịch'), height="350px")
-
-# 3. Biểu đồ Bar và Chi tiết
-chart_row3_col1, chart_row3_col2 = st.columns(2)
-
-# Top Tour Doanh Thu
-with chart_row3_col1:
-    st.subheader("🏆 TOP 5 TOUR DOANH THU CAO NHẤT")
-    st_echarts(options=get_bar_chart_option(DATA_PAYLOAD['bar_tour_revenue']), height="350px")
-
-# Bảng Chi tiết (dùng Pandas Dataframe)
-with chart_row3_col2:
-    st.subheader("📑 CHI TIẾT BOOKING KHÁCH HÀNG")
-    df_detail = pd.DataFrame(DATA_PAYLOAD['table_detail_customer'])
+if not df_data.empty:
+    # 1. TÍNH TOÁN KPIs
+    total_revenue = df_data['Trị Giá'].sum()
+    total_booking_value = df_data['Trị Giá Booking'].sum()
+    total_customers = df_data['Số Lượng Khách'].sum()
+    unique_nationalities = df_data['Quốc Tịch'].nunique()
     
-    # Định dạng hiển thị trong Dataframe
-    df_styled = df_detail.style.format({
-        'Trị giá': lambda x: f"{x:,.0f} VND",
-        'Trị giá booking': lambda x: f"{x:,.0f} VND",
-        'Ngày khởi hành': lambda x: pd.to_datetime(x).strftime('%d/%m/%Y')
-    })
-    
-    st.dataframe(df_styled, height=350, use_container_width=True)
+    kpi_cols = st.columns(4)
+
+    with kpi_cols[0]:
+        custom_kpi_card("TỔNG TRỊ GIÁ", total_revenue)
+    with kpi_cols[1]:
+        custom_kpi_card("TỔNG TRỊ GIÁ BOOKING", total_booking_value)
+    with kpi_cols[2]:
+        custom_kpi_card("TỔNG SỐ KHÁCH", total_customers, unit='Người')
+    with kpi_cols[3]:
+        custom_kpi_card("SỐ QUỐC TỊCH", unique_nationalities, unit='Quốc tịch')
+
+    # 2. BIỂU ĐỒ CHÍNH
+    st.markdown("---")
+    chart_row2_col1, chart_row2_col2, chart_row2_col3 = st.columns(3)
+
+    # Xu hướng Doanh Thu
+    with chart_row2_col1:
+        st.subheader("📈 XU HƯỚNG TRỊ GIÁ THEO NGÀY KHỞI HÀNH")
+        st_echarts(options=get_line_chart_option(df_data), height="350px")
+
+    # Phân Bố Giới Tính
+    with chart_row2_col2:
+        st.subheader("👥 PHÂN BỐ GIỚI TÍNH")
+        # Phân bố theo số lượng khách, không phải số dòng (nếu cột Số Lượng Khách > 1)
+        st_echarts(options=get_pie_chart_option(df_data, 'Giới Tính', 'Số Lượng Khách', 'Phân Bố Giới Tính'), height="350px")
+
+    # Phân Bố Quốc Tịch
+    with chart_row2_col3:
+        st.subheader("🗺️ PHÂN BỐ QUỐC TỊCH")
+        st_echarts(options=get_pie_chart_option(df_data, 'Quốc Tịch', 'Số Lượng Khách', 'Phân Bố Quốc Tịch'), height="350px")
+
+    # 3. Biểu đồ Bar và Chi tiết
+    st.markdown("---")
+    chart_row3_col1, chart_row3_col2 = st.columns(2)
+
+    # Top Tour Doanh Thu
+    with chart_row3_col1:
+        st.subheader("🏆 TOP 5 TOUR DOANH THU CAO NHẤT")
+        st_echarts(options=get_bar_chart_option(df_data), height="350px")
+
+    # Bảng Chi tiết
+    with chart_row3_col2:
+        st.subheader("📑 CHI TIẾT BOOKING KHÁCH HÀNG (10 dòng đầu)")
+        # Chọn các cột hiển thị theo yêu cầu trong ảnh:
+        df_display = df_data[['Họ Tên', 'Giới Tính', 'Quốc Tịch', 'Tên Tour', 'Ngày Khởi Hành', 'Trị Giá', 'Trị Giá Booking']].head(10)
+        
+        # Định dạng hiển thị trong Dataframe
+        df_styled = df_display.style.format({
+            'Trị Giá': lambda x: f"{x:,.0f} VND" if pd.notna(x) else "",
+            'Trị Giá Booking': lambda x: f"{x:,.0f} VND" if pd.notna(x) else "",
+            'Ngày Khởi Hành': lambda x: x.strftime('%d/%m/%Y') if pd.notna(x) else ""
+        })
+        
+        st.dataframe(df_styled, height=350, use_container_width=True)
+
+else:
+    st.warning("Không thể tải dữ liệu từ Google Sheet hoặc dữ liệu trống sau khi làm sạch.")
