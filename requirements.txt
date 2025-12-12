@@ -1,6 +1,5 @@
 streamlit
 pandas
 plotly
-# Nếu cần kết nối trực tiếp đến Google Sheets:
-# gspread
-# streamlit-gsheets
+streamlit-echarts
+streamlit-gsheet
